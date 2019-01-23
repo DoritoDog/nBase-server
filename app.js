@@ -7,10 +7,14 @@ const bodyParser = require('body-parser');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+const fs   = require('fs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const Sequelize = require('sequelize');
+const publicKey  = fs.readFileSync('./public.key', 'utf8');
+const privateKey  = fs.readFileSync('./private.key', 'utf8');
 
+const crypto = require('crypto');
+
+const Sequelize = require('sequelize');
 const sequelize = new Sequelize(
 	'game',
 	process.env.DB_USERNAME,
@@ -73,7 +77,7 @@ app.post('/login', (req, res) => {
 			}
 		})
 		.then(user => {
-			var token = jwt.sign({ id: user.id }, process.env.SECRET, { expiresIn: 86400 /* 24 hours */ });
+			var token = jwt.sign({ id: user.id }, privateKey, { expiresIn: 86400 /* 24 hours */ });
 			res.status(200).send({ auth: true, token: token });
 		});
 	}
@@ -83,7 +87,7 @@ app.post('/register', (req, res) => {
 	if (req.body.username && req.body.deviceId) {
 		var sql = 'INSERT INTO users (username, device_id) VALUES (?, ?)';
 		queryDB(sql, [req.body.username, sha256(req.body.deviceId)], result => {
-			var token = jwt.sign({ id: mysql.insertId }, process.env.SECRET, { expiresIn: 86400 /* 24 hours */ });
+			var token = jwt.sign({ id: mysql.insertId }, privateKey, { expiresIn: 86400 /* 24 hours */, algorithm: "RS256" });
 			res.status(200).send({ auth: true, token: token });
 		});
 	}
@@ -124,7 +128,7 @@ app.post('/storeItems', (req, res) => {
 app.post('/purchase', (req, res) => {
 
 	if (req.body.token) {
-		const result = jwt.verify(req.body.token, process.env.SECRET, { expiresIn: 86400 /* 24 hours */ });
+		const result = jwt.verify(req.body.token, publicKey, { expiresIn: 86400 /* 24 hours */, algorithm: "RS256" });
 		if (result.id == req.body.userId) {
 			
 			User.findOne({
