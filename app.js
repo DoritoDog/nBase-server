@@ -86,7 +86,7 @@ sequelize.authenticate()
 
 // Express routing
 app.get('/', (req, res) => {
-	res.send('Node JS dApplication');
+	res.send('Node JS Application');
 });
 
 app.listen(process.env.PORT, () => {
