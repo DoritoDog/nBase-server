@@ -20,6 +20,7 @@
     "bcryptjs": "^2.4.3",
     "dotenv": "^6.2.0",
     "express": "^4.16.4",
+    "in-app-purchase": "^1.11.1",
     "jsonwebtoken": "^8.4.0",
     "mysql2": "^1.6.4",
     "sequelize": "^4.42.0"

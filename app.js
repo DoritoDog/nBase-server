@@ -11,8 +11,16 @@ const fs   = require('fs');
 const jwt = require('jsonwebtoken');
 const publicKey  = fs.readFileSync('./public.key', 'utf8');
 const privateKey  = fs.readFileSync('./private.key', 'utf8');
+const googlePublic = fs.readFileSync('./googlePublic.key', 'utf8');
 
 const crypto = require('crypto');
+
+const iap = require('in-app-purchase');
+iap.config({
+	googlePublicKeyPath: 'googlePublic.key', // this is the path to the directory containing iap-sanbox/iap-live files
+  // googlePublicKeyStrSandBox: 'publicKeySandboxString', // this is the google iap-sandbox public key string
+  // googlePublicKeyStrLive: 'publicKeyLiveString', // this is the google iap-live public key string
+});
 
 const Sequelize = require('sequelize');
 const sequelize = new Sequelize(
@@ -116,16 +124,6 @@ app.post('/login', (req, res) => {
 	}
 	catch (error) {
 		res.status(500).send({ auth: false, error: error });
-	}
-});
-
-app.post('/register', (req, res) => {
-	if (req.body.username && req.body.deviceId) {
-		var sql = 'INSERT INTO users (username, device_id) VALUES (?, ?)';
-		queryDB(sql, [req.body.username, sha256(req.body.deviceId)], result => {
-			var token = jwt.sign({ id: mysql.insertId }, privateKey, { expiresIn: 86400 /* 24 hours */, algorithm: "RS256" });
-			res.status(200).send({ auth: true, token: token });
-		});
 	}
 });
 
@@ -235,31 +233,6 @@ app.post('/purchase', (req, res) => {
 	}
 });
 
-// Requires a token, userId, and newUsername.
-app.post('/changeUsername', (req, res) => {
-
-	if (req.body.token) {
-		const result = jwt.verify(req.body.token, privateKey, { expiresIn: 86400 /* 24 hours */, algorithm: "RS256" });
-		if (result.id == req.body.userId) {
-			
-			User.findOne({
-				where: {
-					id: result.id
-				}
-			})
-			.then(user => {
-				user.username = req.body.newUsername;
-				user.save();
-			});
-
-			res.sendStatus(200);
-		}
-		else {
-			res.sendStatus(403);
-		}
-	}
-});
-
 // Requires a token, userId, and newUrl.
 app.post('/setImageURL', (req, res) => {
 
@@ -306,6 +279,32 @@ app.post('/friends', (req, res) => {
 		});
 	});
 });
+
+app.post('/reciept', (req, res) => {
+	iap.setup()
+  .then(() => {
+    iap.validateOnce(req.body.receipt, googlePublic).then(onValidateSuccess).catch(onValidateError);
+  })
+  .catch((error) => {
+    // error...
+  });
+});
+
+function onValidateSuccess(validatedData) {
+	// validatedData: the actual content of the validated receipt
+	// validatedData also contains the original receipt
+	var options = {
+			ignoreCanceled: true, // Apple ONLY (for now...): purchaseData will NOT contain cancceled items
+			ignoreExpired: true // purchaseData will NOT contain exipired subscription items
+	};
+	// validatedData contains sandbox: true/false for Apple and Amazon
+	var purchaseData = iap.getPurchaseData(validatedData, options);
+	console.log(purchaseData);
+}
+
+function onValidateError(error) {
+	// failed to validate the receipt...
+}
 
 function getUser(token, userId, callback) {
 	if (token) {
