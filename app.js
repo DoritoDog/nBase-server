@@ -36,10 +36,10 @@ const User = sequelize.define('users', {
 	image_url: { type: Sequelize.STRING }
 });
 
-User.prototype.toJSON =  function () {
-  var values = Object.assign({}, this.get());
-  delete values.device_id;
-  return values;
+User.prototype.toJSON = function () {
+	var values = Object.assign({}, this.get());
+	delete values.device_id;
+	return values;
 }
 
 const Item = sequelize.define('items', {
@@ -72,6 +72,10 @@ InventoryItem.prototype.toJSON =  function () {
 
 const Tag = sequelize.define('tags', { name: { type: Sequelize.STRING } }, { timestamps: false });
 const TagOnItem = sequelize.define('tags_on_items', { }, { timestamps: false });
+
+const Friend = sequelize.define('friends', { }, { timestamps: false });
+Friend.belongsTo(User, { foreignKey: 'friend_id' });
+User.hasMany(Friend, { as: 'Friends', foreignKey: 'user_id' });
 
 // #endregion
 
@@ -277,6 +281,32 @@ app.post('/profile', (req, res) => {
 	});
 });
 
+// Requires a token, userId, and user data
+app.post('/updateUser', (req, res) => {
+	getUser(req.body.token, req.body.userId, user => {
+		user.update(JSON.parse(req.body.userData));
+		res.status(200).send({ success: true });
+	});
+});
+
+// Requires a token and userId.
+app.post('/friends', (req, res) => {
+	getUser(req.body.token, req.body.userId, user => {
+		user.getFriends().then(returnedFriends => {
+			let friends = [];
+			for (var i = 0; i < returnedFriends.length; i++) {
+        returnedFriends[i].getUser().then(user => {
+					
+					friends.push(user);
+
+					if (i == returnedFriends.length)
+					  res.status(200).send(JSON.stringify(friends));
+				});
+			}
+		});
+	});
+});
+
 function getUser(token, userId, callback) {
 	if (token) {
 		const result = jwt.verify(token, privateKey, { expiresIn: 86400 /* 24 hours */, algorithm: "RS256" });
@@ -289,7 +319,10 @@ function getUser(token, userId, callback) {
 			})
 			.then(user => {
 				callback(user);
-			});
+			})
+			.catch(error => {
+				res.status(500).send({ success: false });
+			})
 		}
 		else {
 			res.sendStatus(403);
