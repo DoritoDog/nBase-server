@@ -193,14 +193,14 @@ app.post('/inventory', (req, res) => {
 
 // Requires a token and userId.
 app.post('/goldBalance', (req, res) => {
-	getUser(req.body.token, req.body.userId, user => {
+	getUser(res, req.body.token, req.body.userId, user => {
 		res.status(200).send({ gold: user.gold });
 	});
 });
 
 // Requires a token, userId, and gold amount.
 app.post('/giveGold', (req, res) => {
-	getUser(req.body.token, req.body.userId, user => {
+	getUser(res, req.body.token, req.body.userId, user => {
 		user.gold += req.body.gold;
 		user.save();
 	});
@@ -279,8 +279,7 @@ app.post('/purchase', (req, res) => {
 
 // Requires a token, userId, and newUrl.
 app.post('/setImageURL', (req, res) => {
-
-	getUser(req.body.token, req.body.userId, user => {
+	getUser(res, req.body.token, req.body.userId, user => {
 		user.image_url = req.body.newUrl;
 		user.save();
 	});
@@ -300,7 +299,7 @@ app.post('/profile', (req, res) => {
 
 // Requires a token, userId, and user data
 app.post('/updateUser', (req, res) => {
-	getUser(req.body.token, req.body.userId, user => {
+	getUser(res, req.body.token, req.body.userId, user => {
 		user.update(JSON.parse(req.body.userData));
 		res.status(200).send({ success: true });
 	});
@@ -308,7 +307,7 @@ app.post('/updateUser', (req, res) => {
 
 // Requires a token and userId.
 app.post('/friends', (req, res) => {
-	getUser(req.body.token, req.body.userId, user => {
+	getUser(res, req.body.token, req.body.userId, user => {
 		user.getFriends().then(returnedFriends => {
 			let friends = [];
 			for (var i = 0; i < returnedFriends.length; i++) {
@@ -325,52 +324,52 @@ app.post('/friends', (req, res) => {
 });
 
 app.post('/reciept', (req, res) => {
-	iap.setup()
-  .then(() => {
-		let unityReciept = JSON.parse(req.body.reciept);
-
-		iap.validateOnce(unityReciept, googlePublic)
-		.then(validatedData => {
-			var options = {
-				ignoreCanceled: true,
-				ignoreExpired: true
-			};
-			let purchaseData = iap.getPurchaseData(validatedData, options);
-			completePurchase(purchaseData[0].productId);
+	getUser(res, req.body.token, req.body.userId, user => {
+		iap.setup()
+		.then(() => {
+			let unityReciept = JSON.parse(req.body.reciept);
+	
+			iap.validateOnce(unityReciept, googlePublic)
+			.then(validatedData => {
+				var options = {
+					ignoreCanceled: true,
+					ignoreExpired: true
+				};
+				let purchaseData = iap.getPurchaseData(validatedData, options);
+				completePurchase(purchaseData[0].productId, user, res);
+			})
+			.catch(error => {
+				res.status(500).send({ success: false });
+			});
 		})
-		.catch(error => {
+		.catch((error) => {
 			res.status(500).send({ success: false });
 		});
-  })
-  .catch((error) => {
-		res.status(500).send({ success: false });
-  });
+	});
 });
 
-var testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NywiaWF0IjoxNTUxNTQ3MjY5LCJleHAiOjE1NTE2MzM2Njl9.VHVcR86DrWz30Ls-72oIZxrCi0AeSUD6qXuQFlJSUrg';
-completePurchase('10_ncg', testToken, 7);
+function completePurchase(productId, user, res) {
+	goldProducts.forEach(product => {
+		if (product.productId === productId) {
+			let goldBalance = parseInt(user.gold);
+			goldBalance += product.amount;
+			user.gold = goldBalance;
+			user.save();
+			res.status(200).send({ success: true });
+			return;
+		}
+	});
 
-function completePurchase(productId, token, userId) {
-	getUser(token, userId, user => {
-		goldProducts.forEach(product => {
-			if (product.productId === productId) {
-				let goldBalance = parseInt(user.gold);
-				goldBalance += product.amount;
-				user.gold = goldBalance;
-				user.save();
-				return;
-			}
-		});
-
-		cryptoGoldProducts.forEach(product => {
-			if (product.productId === productId) {
-				ethereum.mintToken(user.eth_address, product.amount);
-			}
-		});
+	cryptoGoldProducts.forEach(product => {
+		if (product.productId === productId) {
+			ethereum.mintToken(user.eth_address, product.amount);
+			res.status(200).send({ success: true });
+			return;
+		}
 	});
 }
 
-function getUser(token, userId, callback) {
+function getUser(res, token, userId, callback) {
 	if (token) {
 		const result = jwt.verify(token, privateKey, { expiresIn: 86400 /* 24 hours */, algorithm: "RS256" });
 		if (result.id == userId) {

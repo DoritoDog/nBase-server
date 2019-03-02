@@ -11,12 +11,12 @@ const BigNumber = require('bignumber.js');
 const web3 = new Web3(new Web3.providers.HttpProvider("https://kovan.infura.io/MalstqsO7EYyOSLpTUdi"));
 const txUtils = lightWallet.txutils;
 
-const fs   = require('fs');
+const fs = require('fs');
 
 //#region Contract variables
 const tokenAddress = process.env.CONTRACT_ADDRESS;
 const tokenBytecode = fs.readFileSync('./bytecode.txt', 'utf8');
-const tokenABI = fs.readFileSync('./abi.txt', 'utf8');
+const tokenABI = JSON.parse(fs.readFileSync('./abi.txt', 'utf8'));
 //#endregion
 
 const tokenDefinition = web3.eth.contract(tokenABI);
@@ -52,9 +52,9 @@ module.exports = {
         return web3.toDecimal(web3.fromWei(balance, 'ether'));
     },
 
-		/**
-		 * The amount is automatically converted into wei.
-		 */
+    /**
+     * The amount is automatically converted into wei.
+     */
     transferTokens: (to, amount, privateKey) => {
         let from = getAddress(privateKey);
         amount = web3.toWei(amount);
@@ -70,19 +70,19 @@ module.exports = {
         return sendRawTx(rawTx, privateKey);
 		},
 		
-		/**
-		 * The amount is automatically converted into wei.
-		 */
-		mintToken: (target, amount) => {
-			amount = web3.toWei(amount);
-			let options = {
-				nonce: web3.toHex(web3.eth.getTransactionCount(process.env.OWNER_ADDRESS)),
-				gasLimit: web3.toHex(800000),
-				gasPrice: web3.toHex(20000000000),
-				to: tokenAddress
-			};
+    /**
+     * The amount is automatically converted into wei.
+     */
+    mintToken: (target, amount) => {
+        amount = web3.toWei(amount);
+        let options = {
+            nonce: web3.toHex(web3.eth.getTransactionCount(process.env.OWNER_ADDRESS)),
+            gasLimit: web3.toHex(800000),
+            gasPrice: web3.toHex(20000000000),
+            to: tokenAddress
+        };
 
-			let rawTx = txUtils.functionTx(tokenABI, 'mintToken', [target, amount], options);
-			return sendRawTx(rawTx, process.env.PRIVATE_KEY);
-		},
+        let rawTx = txUtils.functionTx(tokenABI, 'mintToken', [target, amount], options);
+        return sendRawTx(rawTx, process.env.PRIVATE_KEY);
+    },
 };
