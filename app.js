@@ -15,12 +15,24 @@ const googlePublic = fs.readFileSync('./googlePublic.key', 'utf8');
 
 const crypto = require('crypto');
 
+const ethereum = require('./ethereum.js');
+
 const iap = require('in-app-purchase');
 iap.config({
-	googlePublicKeyPath: 'googlePublic.key', // this is the path to the directory containing iap-sanbox/iap-live files
-  // googlePublicKeyStrSandBox: 'publicKeySandboxString', // this is the google iap-sandbox public key string
-  // googlePublicKeyStrLive: 'publicKeyLiveString', // this is the google iap-live public key string
+	googlePublicKeyPath: 'googlePublic.key'
 });
+const goldProducts = [
+	{
+		productId: '100k_gold',
+		amount: 100000
+	},
+];
+const cryptoGoldProducts = [
+	{
+		productId: '10_ncg',
+		amount: 10
+	},
+];
 
 const Sequelize = require('sequelize');
 const sequelize = new Sequelize(
@@ -283,27 +295,47 @@ app.post('/friends', (req, res) => {
 app.post('/reciept', (req, res) => {
 	iap.setup()
   .then(() => {
-    iap.validateOnce(req.body.receipt, googlePublic).then(onValidateSuccess).catch(onValidateError);
+		let unityReciept = JSON.parse(req.body.reciept);
+
+		iap.validateOnce(unityReciept, googlePublic)
+		.then(validatedData => {
+			var options = {
+				ignoreCanceled: true,
+				ignoreExpired: true
+			};
+			let purchaseData = iap.getPurchaseData(validatedData, options);
+			completePurchase(purchaseData[0].productId);
+		})
+		.catch(error => {
+			res.status(500).send({ success: false });
+		});
   })
   .catch((error) => {
-    // error...
+		res.status(500).send({ success: false });
   });
 });
 
-function onValidateSuccess(validatedData) {
-	// validatedData: the actual content of the validated receipt
-	// validatedData also contains the original receipt
-	var options = {
-			ignoreCanceled: true, // Apple ONLY (for now...): purchaseData will NOT contain cancceled items
-			ignoreExpired: true // purchaseData will NOT contain exipired subscription items
-	};
-	// validatedData contains sandbox: true/false for Apple and Amazon
-	var purchaseData = iap.getPurchaseData(validatedData, options);
-	console.log(purchaseData);
-}
+var testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NywiaWF0IjoxNTUxNTA3MzY4LCJleHAiOjE1NTE1OTM3Njh9.GM6pwCPxODqF-pfsOqf2YTg77u2f3tNoKrZ9VE8MM4w';
+completePurchase('10_ncg', testToken, 7);
 
-function onValidateError(error) {
-	// failed to validate the receipt...
+function completePurchase(productId, token, userId) {
+	getUser(token, userId, user => {
+		goldProducts.forEach(product => {
+			if (product.productId === productId) {
+				let goldBalance = parseInt(user.gold);
+				goldBalance += product.amount;
+				user.gold = goldBalance;
+				user.save();
+				return;
+			}
+		});
+
+		cryptoGoldProducts.forEach(product => {
+			if (product.productId === productId) {
+				ethereum.mintToken(user.eth_address, product.amount);
+			}
+		});
+	});
 }
 
 function getUser(token, userId, callback) {
