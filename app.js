@@ -23,14 +23,46 @@ iap.config({
 });
 const goldProducts = [
 	{
+		productId: '50k_gold',
+		amount: 50000
+	},
+	{
 		productId: '100k_gold',
 		amount: 100000
 	},
+	{
+		productId: '300k_gold',
+		amount: 300000
+	},
+	{
+		productId: '500k_gold',
+		amount: 500000
+	},
+	{
+		productId: '1m_gold',
+		amount: 1000000
+	}
 ];
 const cryptoGoldProducts = [
 	{
 		productId: '10_ncg',
 		amount: 10
+	},
+	{
+		productId: '50_ncg',
+		amount: 50
+	},
+	{
+		productId: '100_ncg',
+		amount: 100
+	},
+	{
+		productId: '500_ncg',
+		amount: 500
+	},
+	{
+		productId: '1k_ncg',
+		amount: 1000
 	},
 ];
 
@@ -315,7 +347,7 @@ app.post('/reciept', (req, res) => {
   });
 });
 
-var testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NywiaWF0IjoxNTUxNTA3MzY4LCJleHAiOjE1NTE1OTM3Njh9.GM6pwCPxODqF-pfsOqf2YTg77u2f3tNoKrZ9VE8MM4w';
+var testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NywiaWF0IjoxNTUxNTQ3MjY5LCJleHAiOjE1NTE2MzM2Njl9.VHVcR86DrWz30Ls-72oIZxrCi0AeSUD6qXuQFlJSUrg';
 completePurchase('10_ncg', testToken, 7);
 
 function completePurchase(productId, token, userId) {
