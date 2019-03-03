@@ -106,7 +106,8 @@ const Item = sequelize.define('items', {
 	hit_points: { type: Sequelize.INTEGER },
 	damage: { type: Sequelize.INTEGER },
 	shoot_delay: { type: Sequelize.FLOAT },
-	range: { type: Sequelize.INTEGER }
+	range: { type: Sequelize.INTEGER },
+	speed: { type: Sequelize.FLOAT }
 }, {
 	timestamps: false
 });
