@@ -364,7 +364,7 @@ app.post('/friends', (req, res) => {
 						
 						friends.push(user);
 	
-						if (i == returnedFriends.length - 1)
+						if (i == returnedFriends.length)
 							res.status(200).send(JSON.stringify(friends));
 					});
 				}
@@ -384,8 +384,14 @@ app.post('/friendRequests', (req, res) => {
 	});
 });
 
-app.post('/friendRequestResponse', (req, res) => {
-
+// Requires a token, userId, and recieverId.
+app.post('/sendFriendRequest', (req, res) => {
+	getUser(res, req.body.token, req.body.userId, user => {
+		FriendRequest.create({
+			sender_id: user.id,
+			reciever_id: req.body.recieverId
+		})
+	});
 });
 
 // Requires a token, userId, and reciept.
