@@ -463,3 +463,14 @@ function getUser(res, token, userId, callback) {
 		}
 	}
 }
+
+function giveAllItemsTo(userId) {
+	Item.findAll({}).then(items => {
+		items.forEach(item => {
+			InventoryItem.create({
+				item_id: item.id,
+				user_id: userId
+			});
+		});
+	});
+}
