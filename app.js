@@ -105,7 +105,7 @@ const Item = sequelize.define('items', {
 	spawn_time: { type: Sequelize.INTEGER },
 	hit_points: { type: Sequelize.INTEGER },
 	damage: { type: Sequelize.INTEGER },
-	shoot_delay: { type: Sequelize.INTEGER },
+	shoot_delay: { type: Sequelize.FLOAT },
 	range: { type: Sequelize.INTEGER }
 }, {
 	timestamps: false
