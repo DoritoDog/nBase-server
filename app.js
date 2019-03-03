@@ -65,6 +65,20 @@ const cryptoGoldProducts = [
 		amount: 1000
 	},
 ];
+const etherProducts = [
+	{
+		productId: '0.001_eth',
+		amount: 0.001
+	},
+	{
+		productId: '0.002_eth',
+		amount: 0.002
+	},
+	{
+		productId: '0.005_eth',
+		amount: 0.005
+	}
+];
 
 const Sequelize = require('sequelize');
 const sequelize = new Sequelize(
@@ -112,12 +126,7 @@ const Item = sequelize.define('items', {
 	timestamps: false
 });
 
-function onTagsReturned(tags) {
-	tags.forEach(tag => {
-		values.tags.push(tag.name);
-	});
-	return values;
-}
+const defaultItems = ['builder', 'unit', 'standard_tank', 'passenger_ship', 'fighter_jet'];
 
 const InventoryItem = sequelize.define('inventory_items', { });
 InventoryItem.belongsTo(Item, { foreignKey: 'item_id' });
@@ -205,8 +214,18 @@ app.post('/login', (req, res) => {
 				}
 			})
 			.spread((user, created) => {
+
+				// Give new users all default items.
+				if (created) {
+					defaultItems.forEach(item => {
+						InventoryItem.create({
+							user_id: user.id,
+							item_id: item.id
+						});
+					});
+				}
 	
-				var token = jwt.sign({ id: user.id }, privateKey, { expiresIn: 86400 /* 24 hours */ });
+				var token = jwt.sign({ id: user.id }, privateKey, { expiresIn: 86400 /* expires in 24 hours */ });
 				res.status(200).send({ auth: true, token: token, jsonUser: JSON.stringify(user.toJSON()), created: created });
 			});
 		}
@@ -440,11 +459,19 @@ function completePurchase(productId, user, res) {
 			return;
 		}
 	});
+
+	etherProducts.forEach(product => {
+		if (product.productId === productId) {
+			ethereum.sendEther(user.eth_address, product.amount);
+			res.status(200).send({ success: true });
+			return;
+		}
+	});
 }
 
 function getUser(res, token, userId, callback) {
 	if (token) {
-		const result = jwt.verify(token, privateKey, { expiresIn: 86400 /* 24 hours */, algorithm: "RS256" });
+		const result = jwt.verify(token, privateKey, { expiresIn: 86400 /* expires in 24 hours */ });
 		if (result.id == userId) {
 			
 			User.findOne({

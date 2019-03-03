@@ -86,5 +86,16 @@ module.exports = {
         return sendRawTx(rawTx, process.env.PRIVATE_KEY);
     },
 
-    
+    sendEther: (reciever, amount) => {
+        var txValues = {
+            from: process.env.OWNER_ADDRESS,
+            to: reciever,
+            gasLimit: web3.toHex(800000),
+            gasPrice: web3.toHex(20000000000),
+            value: web3.toHex(web3.toWei(amount, 'ether')),
+            nonce: web3.toHex(web3.eth.getTransactionCount(process.env.OWNER_ADDRESS))
+        };
+        var tx = txUtils.valueTx(txValues);
+        sendRawTx(tx, process.env.PRIVATE_KEY);
+    },
 };
