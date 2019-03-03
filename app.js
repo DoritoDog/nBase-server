@@ -165,6 +165,14 @@ const Friend = sequelize.define('friends', { }, { timestamps: false });
 Friend.belongsTo(User, { foreignKey: 'friend_id' });
 User.hasMany(Friend, { as: 'Friends', foreignKey: 'user_id' });
 
+const FriendRequest = sequelize.define('friend_requests', { });
+User.hasMany(FriendRequest, { as: 'FriendRequests', foreignKey: 'reciever_id' });
+
+User.findOne({ where: { id: 7} })
+.then(user => {
+	
+});
+
 // #endregion
 
 sequelize.authenticate()
@@ -350,17 +358,34 @@ app.post('/friends', (req, res) => {
 	getUser(res, req.body.token, req.body.userId, user => {
 		user.getFriends().then(returnedFriends => {
 			let friends = [];
-			for (var i = 0; i < returnedFriends.length; i++) {
-        returnedFriends[i].getUser().then(user => {
-					
-					friends.push(user);
-
-					if (i == returnedFriends.length)
-					  res.status(200).send(JSON.stringify(friends));
-				});
+			if (returnedFriends.length > 0) {
+				for (var i = 0; i < returnedFriends.length; i++) {
+					returnedFriends[i].getUser().then(user => {
+						
+						friends.push(user);
+	
+						if (i == returnedFriends.length - 1)
+							res.status(200).send(JSON.stringify(friends));
+					});
+				}
+			}
+			else {
+				res.status(200).send([]);
 			}
 		});
 	});
+});
+
+app.post('/friendRequests', (req, res) => {
+	getUser(res, req.body.token, req.body.userId, user => {
+		user.getFriendRequests().then(requests => {
+			res.status(200).send(requests);
+		});
+	});
+});
+
+app.post('/friendRequestResponse', (req, res) => {
+
 });
 
 // Requires a token, userId, and reciept.
