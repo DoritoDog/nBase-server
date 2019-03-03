@@ -112,6 +112,8 @@ const Item = sequelize.define('items', {
 	identifier: { type: Sequelize.STRING },
 	name: { type: Sequelize.STRING },
 	description: { type: Sequelize.STRING },
+	positive_attributes: { type: Sequelize.STRING },
+	negative_attributes: { type: Sequelize.STRING },
 	gold_cost: { type: Sequelize.INTEGER },
 	money_cost: { type: Sequelize.INTEGER },
 	wood: { type: Sequelize.INTEGER },
