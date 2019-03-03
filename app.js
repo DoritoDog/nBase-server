@@ -111,6 +111,13 @@ const Item = sequelize.define('items', {
 	timestamps: false
 });
 
+function onTagsReturned(tags) {
+	tags.forEach(tag => {
+		values.tags.push(tag.name);
+	});
+	return values;
+}
+
 const InventoryItem = sequelize.define('inventory_items', { });
 InventoryItem.belongsTo(Item, { foreignKey: 'item_id' });
 User.hasMany(InventoryItem, { as: 'Inventory', foreignKey: 'user_id' });
@@ -123,7 +130,36 @@ InventoryItem.prototype.toJSON =  function () {
 }
 
 const Tag = sequelize.define('tags', { name: { type: Sequelize.STRING } }, { timestamps: false });
-const TagOnItem = sequelize.define('tags_on_items', { }, { timestamps: false });
+const TagOnItem = sequelize.define('tags_on_items', {
+	id: {
+    type: Sequelize.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+	},
+	item_id: {
+		type: Sequelize.INTEGER
+	},
+	tag_id: {
+		type: Sequelize.INTEGER
+	}
+}, { timestamps: false });
+
+Item.belongsToMany(Tag, {
+  through: {
+    model: TagOnItem,
+    unique: false,
+  },
+	foreignKey: 'item_id',
+  constraints: false
+});
+Tag.belongsToMany(Item, {
+  through: {
+    model: TagOnItem,
+    unique: false
+  },
+  foreignKey: 'tag_id',
+  constraints: false
+});
 
 const Friend = sequelize.define('friends', { }, { timestamps: false });
 Friend.belongsTo(User, { foreignKey: 'friend_id' });
@@ -206,25 +242,29 @@ app.post('/giveGold', (req, res) => {
 	});
 });
 
-app.post('/storeItems', (req, res) => {
-
-	Item.findAll({
-		where: {
-			gold_cost: {
-				[Op.not]: [0]
-			}
-		}
-	})
-	.then(items => {
-		res.status(200).send(JSON.stringify(items));
-	});
-
-});
-
 app.post('/allItems', (req, res) => {
 
-	Item.findAll({ }).then(items => {
-		res.status(200).send(JSON.stringify(items));
+	Item.findAll({ })
+	.then(items => {
+		let allItems = [];
+		for (let i = 0; i < items.length; i++) {
+
+			let item = items[i];
+			allItems.push(Object.assign({ tags: [] }, items[i].toJSON()));
+
+			item.getTags().then(tags => {
+				allItems[i].tags = [];
+				tags.forEach(tag => {
+					allItems[i].tags.push(tag.name);
+				});
+
+				if (i == items.length - 1) {
+					res.send(allItems);
+				}
+				
+			});
+
+		}
 	});
 
 });
@@ -323,6 +363,7 @@ app.post('/friends', (req, res) => {
 	});
 });
 
+// Requires a token, userId, and reciept.
 app.post('/reciept', (req, res) => {
 	getUser(res, req.body.token, req.body.userId, user => {
 		iap.setup()
