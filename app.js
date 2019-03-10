@@ -449,24 +449,128 @@ app.post('/reciept', (req, res) => {
 	});
 });
 
-// io.on('connection', socket => {
-// 	console.log('good');
+const io = require('socket.io')({
+	transports: ['websocket'],
+});
 
-// 	socket.on('message', msg => {
-// 		console.log(msg);
-// 	});
+// #region Real time trading
+var trades = [];
+var io = require('socket.io')({
+	transports: ['websocket'],
+});
+io.attach(4444);
+io.on('connection', socket => {
+	socket.on('tradeInvite', msg => {
+		if (msg.accepted) {
+			let tradeId = uuidv4();
+			io.emit('startTrade', { trader1: msg.senderId, trader2: msg.recieverId, tradeId: tradeId });
+			let newTrade = {
+				tradeId: tradeId,
+				trader1Id: msg.senderId,
+				trader2Id: msg.recieverId,
+				trader1Offer: [],
+				trader2Offer: [],
+				isTrader1Ready: false,
+				isTrader2Ready: false,
+				trader1Confirmed: false,
+				trader2Confirmed: false,
+				trader1Crypto: 0,
+				trader2Crypto: 0
+			};
+			trades.push(newTrade);
+		}
+	});
 
-// 	socket.on('disconnect', function() {
-// 		console.log('disconnect');
-// 	});
-// });
-io.on('connection', function(socket){
-	console.log('someone connected.');
-	socket.on('message', function(){
-		socket.emit('message');
-		console.log('msg!');
+	socket.on('trading', msg => {
+		let trade = getTrade(msg.tradeId);
+
+		if (msg.action == 'add') {
+			if (msg.senderId == trade.trader1Id) {
+				trade.trader1Offer.push(msg.inventoryItemId);
+			}
+			else if (msg.senderId == trade.trader2Id) {
+				trade.trader2Offer.push(msg.inventoryItemId);
+			}
+		}
+		else if (msg.action == 'remove') {
+			if (msg.senderId == trade.trader1Id) {
+				for (var i = 0; i < trade.trader1Offer.length; i++) {
+					if (trade.trader1Offer[i] == msg.inventoryItemId)
+						trade.trader1Offer.splice(i, 1);
+				}
+			}
+			else if (msg.senderId == trade.trader2Id) {
+				for (var i = 0; i < trade.trader2Offer.length; i++) {
+					if (trade.trader2Offer[i] == msg.inventoryItemId)
+						trade.trader2Offer.splice(i, 1);
+				}
+			}
+		}
+		else if (msg.action == 'crypto') {
+			if (msg.senderId == trade.trader1Id) {
+				trade.trader1Crypto = msg.crypto;
+			}
+			else if (msg.senderId == trade.trader2Id) {
+				trade.trader2Crypto = msg.crypto;
+			}
+		}
+
+		if (msg.updateReady) {
+			if (msg.senderId == trade.trader1Id) {
+				trade.isTrader1Ready = msg.isTrader1Ready;
+			}
+			else if (msg.senderId == trade.trader2Id) {
+				trade.isTrader2Ready = msg.isTrader2Ready;
+			}
+		}
+		
+		msg.isTrader1Ready = trade.isTrader1Ready;
+		msg.isTrader2Ready = trade.isTrader2Ready;
+
+		if (msg.makeTrade && (trade.isTrader1Ready && trade.isTrader2Ready)) {
+			if (msg.senderId == trade.trader1Id) {
+				trade.trader1Confirmed = true;
+			}
+			else if (msg.senderId == trade.trader2Id) {
+				trade.trader2Confirmed = true;
+			}
+
+			if (trade.trader1Confirmed && trade.trader2Confirmed) {
+				for (let i = 0; i < trade.trader1Offer.length; i++) {
+					InventoryItem.findOne({
+						where: {
+							id: trade.trader1Offer[i]
+						}
+					}).then(item => {
+						item.update({ user_id: trade.trader2Id });
+					});
+				}
+				for (let i = 0; i < trade.trader2Offer.length; i++) {
+					InventoryItem.findOne({
+						where: {
+							id: trade.trader2Offer[i]
+						}
+					}).then(item => {
+						item.update({ user_id: trade.trader1Id });
+					});
+
+					msg.success = true;
+				}
+			}
+		}
+
+		User.findOne({
+			where: {
+				id: msg.senderId
+			}
+		}).then(user => {
+			msg.senderUsername = user.username;
+			console.log(trades);
+			io.emit('trading', msg);
+		});
 	});
 });
+// #endregion
 
 function completePurchase(productId, user, res) {
 	goldProducts.forEach(product => {
