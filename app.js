@@ -1,9 +1,6 @@
 const express = require('express');
 const app = express();
 
-const http = require('http').Server(app);
-const io = require('socket.io')(http);
-
 require('dotenv').load();
 
 const bodyParser = require('body-parser');
@@ -202,10 +199,6 @@ app.get('/', (req, res) => {
 
 app.listen(process.env.PORT, () => {
 	console.log(`app.js is listening on port ${process.env.PORT}.`);
-});
-
-http.listen(process.env.SOCKET_IO_PORT, function() {
-	console.log(`Socket.io is listening on port ${process.env.SOCKET_IO_PORT}.`);
 });
 
 // Requires a deviceId and a username (username if registering for the first time).
