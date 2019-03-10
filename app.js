@@ -127,6 +127,17 @@ const Item = sequelize.define('items', {
 }, {
 	timestamps: false
 });
+Item.prototype.toJSON =  function () {
+	var values = Object.assign({}, this.get());
+	if (values.tags !== undefined) {
+		let tagNames = [];
+		values.tags.forEach(tag => {
+			tagNames.push(tag.name);
+		});
+		values.tags = tagNames;
+	}
+  return values;
+}
 
 const defaultItems = ['builder', 'unit', 'standard_tank', 'passenger_ship', 'fighter_jet'];
 
@@ -274,27 +285,11 @@ app.post('/giveGold', (req, res) => {
 
 app.post('/allItems', (req, res) => {
 
-	Item.findAll({ })
+	Item.findAll({
+		include: [{ model: Tag }]
+	})
 	.then(items => {
-		let allItems = [];
-		for (let i = 0; i < items.length; i++) {
-
-			let item = items[i];
-			allItems.push(Object.assign({ tags: [] }, items[i].toJSON()));
-
-			item.getTags().then(tags => {
-				allItems[i].tags = [];
-				tags.forEach(tag => {
-					allItems[i].tags.push(tag.name);
-				});
-
-				if (i == items.length - 1) {
-					res.send(allItems);
-				}
-				
-			});
-
-		}
+		res.send(items);
 	});
 
 });
