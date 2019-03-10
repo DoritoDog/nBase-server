@@ -449,10 +449,6 @@ app.post('/reciept', (req, res) => {
 	});
 });
 
-const io = require('socket.io')({
-	transports: ['websocket'],
-});
-
 // #region Real time trading
 var trades = [];
 var io = require('socket.io')({
