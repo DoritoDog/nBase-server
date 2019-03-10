@@ -14,7 +14,7 @@ const privateKey  = fs.readFileSync('./private.key', 'utf8');
 const googlePublic = fs.readFileSync('./googlePublic.key', 'utf8');
 
 const crypto = require('crypto');
-const uuid = require('uuid');
+const uuidv4 = require('uuid/v4');
 
 const ethereum = require('./ethereum.js');
 
