@@ -98,4 +98,28 @@ module.exports = {
         var tx = txUtils.valueTx(txValues);
         sendRawTx(tx, process.env.PRIVATE_KEY);
     },
+
+    toHex: decimal => {
+        return web3.toHex(web3.toWei(decimal));
+    },
+
+    getAddress: privateKey => {
+        privateKey = privateKey.startsWith('0x') ? privateKey : '0x' + privateKey;
+        var buffer = util.privateToAddress(privateKey);
+        return '0x' + buffer.toString('hex');
+    },
+
+    transferFrom: (from, to, amount) => {
+        amount = web3.toWei(amount);
+        
+        let options = {
+            nonce: web3.toHex(web3.eth.getTransactionCount(process.env.OWNER_ADDRESS)),
+            gasLimit: web3.toHex(800000),
+            gasPrice: web3.toHex(20000000000),
+            to: tokenAddress
+        };
+    
+        let rawTx = txUtils.functionTx(tokenABI, 'transferFrom', [from, to, amount], options);
+        return sendRawTx(rawTx, process.env.PRIVATE_KEY);
+    }
 };

@@ -192,9 +192,39 @@ User.hasMany(Friend, { as: 'Friends', foreignKey: 'user_id' });
 const FriendRequest = sequelize.define('friend_requests', { });
 User.hasMany(FriendRequest, { as: 'FriendRequests', foreignKey: 'reciever_id' });
 
-User.findOne({ where: { id: 7} })
-.then(user => {
-	
+const Listing = sequelize.define('listings', {
+	user_id: { type: Sequelize.INTEGER },
+	price: { type: Sequelize.STRING },
+	address: { type: Sequelize.STRING },
+	item_identifier: { type: Sequelize.STRING },
+	state: {
+    type:   Sequelize.ENUM,
+    values: ['Pending', 'Sold']
+  }
+});
+Listing.belongsTo(InventoryItem, { foreignKey: 'inventory_item_id' });
+
+const Trader = sequelize.define('traders', {
+	id: {
+    type: Sequelize.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+	},
+	user_id: { type: Sequelize.INTEGER },
+	other_trader_user_id: { type: Sequelize.INTEGER },
+	is_ready: { type: Sequelize.BOOLEAN },
+	has_confirmed: { type: Sequelize.BOOLEAN },
+	tokens_offered: { type: Sequelize.DECIMAL },
+}, {
+	timestamps: false
+});
+Trader.belongsTo(User, { foreignKey: 'user_id', as: 'User' });
+
+const ItemInTrade = sequelize.define('items_in_trades', {
+	inventory_item_id: { type: Sequelize.INTEGER },
+	trader_id: { type: Sequelize.INTEGER },
+}, {
+	timestamps: false
 });
 
 // #endregion
@@ -408,7 +438,7 @@ app.post('/sendFriendRequest', (req, res) => {
 		FriendRequest.create({
 			sender_id: user.id,
 			reciever_id: req.body.recieverId
-		})
+		});
 	});
 });
 
@@ -438,8 +468,81 @@ app.post('/reciept', (req, res) => {
 	});
 });
 
+app.post('/listings', (req, res) => {
+  Listing.findAll({
+		where: {
+			state: 'Pending'
+		},
+		include: [{ model: InventoryItem }]
+	}).then(listings => {
+    res.status(200).send(listings);
+	});
+});
+
+app.post('/newListing', (req, res) => {
+	if (req.body.token) {
+		const result = jwt.verify(req.body.token, privateKey, { expiresIn: 86400 });
+		if (result.id == req.body.userId) {
+			var request = JSON.parse(req.body.listRequest);
+			InventoryItem.findOne({
+				where: {
+					id: request.InventoryItemId
+				}
+			}).then(item => {
+				if (item !== null && item.user_id == req.body.userId) {
+					Listing.create({
+						user_id: item.user_id,
+						inventory_item_id: request.InventoryItemId,
+						item_identifier: request.Identifier,
+						price: ethereum.toHex(request.Price),
+						address: ethereum.getAddress(request.PrivateKey)
+					});
+					res.status(200);
+				}
+				else {
+					res.status(500);
+				}
+
+			});
+		}
+	}
+});
+
+app.post('/buyMarketItem', (req, res) => {
+	try {
+		let request = JSON.parse(req.body.marketBuyRequest);
+		getUser(res, req.body.token, req.body.userId, user => {
+			Listing.findOne({
+				where: {
+					id: request.Id
+				}
+			})
+			.then(listing => {
+				if (listing !== null && listing.state == 'Pending') {
+					InventoryItem.findOne({
+						where: { id: listing.inventory_item_id }
+					}).then(inventoryItem => {
+						inventoryItem.user_id = req.body.userId;
+						inventoryItem.save();
+
+						ethereum.transferFrom(request.Address, listing.address, listing.price);
+	
+						listing.state = 'Sold';
+						listing.save();
+	
+						res.status(200).send({ success: true });
+					});
+				}
+			});
+		});
+	}
+	catch (error) {
+		res.status(500).send({ success: false });
+	}
+});
+
 // #region Real time trading
-var trades = [];
+
 var io = require('socket.io')({
 	transports: ['websocket'],
 });
@@ -447,114 +550,135 @@ io.attach(4444);
 io.on('connection', socket => {
 	socket.on('tradeInvite', msg => {
 		if (msg.accepted) {
-			let tradeId = uuidv4();
-			io.emit('startTrade', { trader1: msg.senderId, trader2: msg.recieverId, tradeId: tradeId });
-			let newTrade = {
-				tradeId: tradeId,
-				trader1Id: msg.senderId,
-				trader2Id: msg.recieverId,
-				trader1Offer: [],
-				trader2Offer: [],
-				isTrader1Ready: false,
-				isTrader2Ready: false,
-				trader1Confirmed: false,
-				trader2Confirmed: false,
-				trader1Crypto: 0,
-				trader2Crypto: 0
-			};
-			trades.push(newTrade);
+			io.emit('startTrade', { trader1: msg.senderId, trader2: msg.recieverId });
+
+			Trader.create({ user_id: msg.senderId, other_trader_user_id: msg.recieverId });
+			Trader.create({ user_id: msg.recieverId, other_trader_user_id: msg.senderId });
 		}
 	});
 
 	socket.on('trading', msg => {
-		let trade = getTrade(msg.tradeId);
+		if (msg.token) {
+			const result = jwt.verify(msg.token, privateKey, { expiresIn: 86400 /* expires in 24 hours */ });
+			if (result.id == msg.senderId) {
 
-		if (msg.action == 'add') {
-			if (msg.senderId == trade.trader1Id) {
-				trade.trader1Offer.push(msg.inventoryItemId);
-			}
-			else if (msg.senderId == trade.trader2Id) {
-				trade.trader2Offer.push(msg.inventoryItemId);
-			}
-		}
-		else if (msg.action == 'remove') {
-			if (msg.senderId == trade.trader1Id) {
-				for (var i = 0; i < trade.trader1Offer.length; i++) {
-					if (trade.trader1Offer[i] == msg.inventoryItemId)
-						trade.trader1Offer.splice(i, 1);
-				}
-			}
-			else if (msg.senderId == trade.trader2Id) {
-				for (var i = 0; i < trade.trader2Offer.length; i++) {
-					if (trade.trader2Offer[i] == msg.inventoryItemId)
-						trade.trader2Offer.splice(i, 1);
-				}
-			}
-		}
-		else if (msg.action == 'crypto') {
-			if (msg.senderId == trade.trader1Id) {
-				trade.trader1Crypto = msg.crypto;
-			}
-			else if (msg.senderId == trade.trader2Id) {
-				trade.trader2Crypto = msg.crypto;
-			}
-		}
-
-		if (msg.updateReady) {
-			if (msg.senderId == trade.trader1Id) {
-				trade.isTrader1Ready = msg.isTrader1Ready;
-			}
-			else if (msg.senderId == trade.trader2Id) {
-				trade.isTrader2Ready = msg.isTrader2Ready;
-			}
-		}
+				Trader.findOne({
+					where: {
+						user_id: msg.senderId
+					}
+				}).then(trader => {
+					if (msg.inventoryItemId !== undefined) {
+						InventoryItem.findOne({
+							where: {
+								id: msg.inventoryItemId,
+								user_id: msg.senderId
+							}
+						}).then(item => {
+							if (item !== null) {
+			
+								if (msg.action == 'add') {
+									ItemInTrade.create({
+										inventory_item_id: item.id,
+										trader_id: trader.id
+									});;
+								}
+								else if (msg.action == 'remove') {
+									ItemInTrade.findOne({
+										where: {
+											inventory_item_id: msg.inventoryItemId
+										}
+									}).then(tradeItem => {
+										return tradeItem.destroy();
+									});
+								}
+							}
+						});
+					}
 		
-		msg.isTrader1Ready = trade.isTrader1Ready;
-		msg.isTrader2Ready = trade.isTrader2Ready;
-
-		if (msg.makeTrade && (trade.isTrader1Ready && trade.isTrader2Ready)) {
-			if (msg.senderId == trade.trader1Id) {
-				trade.trader1Confirmed = true;
-			}
-			else if (msg.senderId == trade.trader2Id) {
-				trade.trader2Confirmed = true;
-			}
-
-			if (trade.trader1Confirmed && trade.trader2Confirmed) {
-				for (let i = 0; i < trade.trader1Offer.length; i++) {
-					InventoryItem.findOne({
+					if (msg.action == 'crypto') {
+						trader.tokens_offered = msg.crypto;
+						trader.save();
+					}
+					else if (msg.action == 'update_ready') {
+						trader.is_ready = msg.isReady;
+						trader.save();
+					}
+		
+					if (msg.makeTrade) {
+						trader.has_confirmed = true;
+						trader.save();
+					}
+		
+					Trader.findOne({
 						where: {
-							id: trade.trader1Offer[i]
+							user_id: trader.other_trader_user_id
 						}
-					}).then(item => {
-						item.update({ user_id: trade.trader2Id });
-					});
-				}
-				for (let i = 0; i < trade.trader2Offer.length; i++) {
-					InventoryItem.findOne({
-						where: {
-							id: trade.trader2Offer[i]
+					}).then(otherTrader => {
+						console.log(trader.is_ready);
+						msg.areYouReady = trader.is_ready;
+						msg.isOtherTraderReady = otherTrader.is_ready;
+		
+						if (msg.action == 'exit') {
+							closeTrade(trader.user_id, otherTrader.user_id);
 						}
-					}).then(item => {
-						item.update({ user_id: trade.trader1Id });
-					});
+		
+						if (msg.makeTrade && (trader.is_ready && otherTrader.is_ready)) {
+		
+							if (trader.has_confirmed && otherTrader.has_confirmed) {
+								tradeItems(trader.id, otherTrader.user_id);
+								tradeItems(otherTrader.id, trader.user_id);
 
-					msg.success = true;
-				}
+								if (trader.tokens_offered > 0) {
+									// Transfer here...
+								}
+								if (otherTrader.tokens_offered > 0) {
+									// And here...
+								}
+
+								closeTrade(trader.user_id, otherTrader.user_id);
+								msg.success = true;
+							}
+						}
+		
+						User.findOne({
+							where: {
+								id: trader.user_id
+							}
+						}).then(user => {
+							msg.senderUsername = user.username;
+							io.emit('trading', msg);
+						});
+					});
+				});
+
 			}
 		}
+	});
+	
+});
 
-		User.findOne({
-			where: {
-				id: msg.senderId
+function closeTrade(userId, otherUserId) {
+	Trader.findAll({
+		where: { 
+			user_id: {
+				[Op.or]: [userId, otherUserId]
 			}
-		}).then(user => {
-			msg.senderUsername = user.username;
-			console.log(trades);
-			io.emit('trading', msg);
+		}
+	}).then(traders => {
+		traders.forEach(trader => {
+			ItemInTrade.findAll({
+				where: { 
+					trader_id: trader.id
+				}
+			}).then(tradeItems => {
+				tradeItems.forEach(tradeItem => {
+					tradeItem.destroy();
+				});
+				trader.destroy();
+			});
 		});
 	});
-});
+}
 // #endregion
 
 function completePurchase(productId, user, res) {
@@ -615,6 +739,25 @@ function giveAllItemsTo(userId) {
 			InventoryItem.create({
 				item_id: item.id,
 				user_id: userId
+			});
+		});
+	});
+}
+
+// from: trader_id, to: user-id
+function tradeItems(from, to) {
+	ItemInTrade.findAll({
+		where: {
+			trader_id: from
+		}
+	}).then(tradeItems => {
+		tradeItems.forEach(tradeItem => {
+			InventoryItem.findOne({
+				where: { id: tradeItem.inventory_item_id }
+			}).then(inventoryItem => {
+				console.log(inventoryItem.id);
+				inventoryItem.user_id = to;
+				inventoryItem.save();
 			});
 		});
 	});
