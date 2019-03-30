@@ -259,6 +259,7 @@ app.post('/login', (req, res) => {
 				},
 				defaults: {
 					username: req.body.username,
+					facebook_id: req.body.facebook_id,
 					level: 1
 				}
 			})
@@ -427,6 +428,21 @@ app.post('/friends', (req, res) => {
 			}
 		});
 	});
+});
+
+// Requires an array of facebook IDs
+app.post('/facebookFriends', (req, res) => {
+	var facebookIds = JSON.parse(req.body.facebookIds);
+	var users = [];
+	for (let i = 0; i < facebookIds.length; i++) {
+		let facebookId = facebookIds[i];
+		User.findOne({ where: { facebook_id: facebookId } }).then(user => {
+			users.push(user);
+			
+			if (i == facebookIds.length - 1)
+				res.status(200).send(users);
+		});
+	};
 });
 
 app.post('/friendRequests', (req, res) => {
