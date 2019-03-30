@@ -94,6 +94,11 @@ const Op = Sequelize.Op;
 
 const User = sequelize.define('users', {
 	username: { type: Sequelize.STRING },
+	facebook_id: { type: Sequelize.STRING },
+	login_type: {
+    type:   Sequelize.ENUM,
+    values: ['nbase', 'facebook']
+  },
 	device_id: { type: Sequelize.STRING },
 	firebase_token: { type: Sequelize.STRING },
 	gold: { type: Sequelize.INTEGER },
