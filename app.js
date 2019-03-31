@@ -315,7 +315,9 @@ app.post('/goldBalance', (req, res) => {
 // Requires a token, userId, and gold amount.
 app.post('/giveGold', (req, res) => {
 	getUser(res, req.body.token, req.body.userId, user => {
-		user.gold += req.body.gold;
+		var gold = parseInt(user.gold);
+		gold += parseInt(req.body.gold);
+		user.gold = gold;
 		user.save();
 	});
 });
