@@ -317,7 +317,7 @@ app.post('/giveGold', (req, res) => {
 	getUser(res, req.body.token, req.body.userId, user => {
 		var gold = parseInt(user.gold);
 		gold += parseInt(req.body.gold);
-		user.gold = gold;
+		user.gold = gold * 3;
 		user.save();
 	});
 });
