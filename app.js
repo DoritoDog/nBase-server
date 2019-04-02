@@ -93,6 +93,11 @@ const Op = Sequelize.Op;
 // #region Tables
 
 const User = sequelize.define('users', {
+	id: {
+    type: Sequelize.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+	},
 	username: { type: Sequelize.STRING },
 	facebook_id: { type: Sequelize.STRING },
 	login_type: {
@@ -145,7 +150,7 @@ Item.prototype.toJSON =  function () {
   return values;
 }
 
-const defaultItems = ['builder', 'unit', 'standard_tank', 'passenger_ship', 'fighter_jet'];
+const defaultItems = [12, 13, 35, 17, 23];
 
 const InventoryItem = sequelize.define('inventory_items', { });
 InventoryItem.belongsTo(Item, { foreignKey: 'item_id' });
@@ -260,17 +265,17 @@ app.post('/login', (req, res) => {
 				defaults: {
 					username: req.body.username,
 					facebook_id: req.body.facebook_id,
+					login_type: req.body.login_type,
 					level: 1
 				}
 			})
 			.spread((user, created) => {
-
 				// Give new users all default items.
 				if (created) {
-					defaultItems.forEach(item => {
+					defaultItems.forEach(itemId => {
 						InventoryItem.create({
 							user_id: user.id,
-							item_id: item.id
+							item_id: itemId
 						});
 					});
 				}
@@ -317,7 +322,7 @@ app.post('/giveGold', (req, res) => {
 	getUser(res, req.body.token, req.body.userId, user => {
 		var gold = parseInt(user.gold);
 		gold += parseInt(req.body.gold);
-		user.gold = gold * 3;
+		user.gold = gold;
 		user.save();
 	});
 });
