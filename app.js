@@ -86,7 +86,7 @@ const sequelize = new Sequelize(
 	'game',
 	process.env.DB_USERNAME,
 	process.env.DB_PASSWORD,
-	{ host: process.env.DB_HOST, dialect: 'mysql', operatorsAliases: false, pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }}
+	{ host: process.env.DB_HOST, logging: false, dialect: 'mysql', operatorsAliases: false, pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }}
 );
 const Op = Sequelize.Op;
 
@@ -416,24 +416,21 @@ app.post('/updateUser', (req, res) => {
 
 // Requires a token and userId.
 app.post('/friends', (req, res) => {
-	getUser(res, req.body.token, req.body.userId, user => {
-		user.getFriends().then(returnedFriends => {
-			let friends = [];
-			if (returnedFriends.length > 0) {
-				for (var i = 0; i < returnedFriends.length; i++) {
-					returnedFriends[i].getUser().then(user => {
-						
-						friends.push(user);
-	
-						if (i == returnedFriends.length)
-							res.status(200).send(JSON.stringify(friends));
-					});
-				}
+	Friend.findAll({where: {user_id: req.body.userId}}).then(returnedFriends => {
+		let friends = [];
+		if (returnedFriends.length > 0) {
+			for (var c = 0; c < returnedFriends.length; c++) {
+				returnedFriends[c].getUser().then(user => {
+					friends.push(user);
+					
+					if (friends.length == returnedFriends.length)
+						res.status(200).send(JSON.stringify(friends));
+				});
 			}
-			else {
-				res.status(200).send([]);
-			}
-		});
+		}
+		else {
+			res.status(200).send([]);
+		}
 	});
 });
 
