@@ -103,7 +103,8 @@ const User = sequelize.define('users', {
 	login_type: {
     type:   Sequelize.ENUM,
     values: ['nbase', 'facebook']
-  },
+	},
+	logins: { type: Sequelize.INTEGER },
 	device_id: { type: Sequelize.STRING },
 	firebase_token: { type: Sequelize.STRING },
 	gold: { type: Sequelize.INTEGER },
@@ -279,6 +280,11 @@ app.post('/login', (req, res) => {
 						});
 					});
 				}
+
+				var logins = parseInt(user.logins);
+				logins++;
+				user.logins = logins;
+				user.save();
 	
 				var token = jwt.sign({ id: user.id }, privateKey, { expiresIn: 86400 /* expires in 24 hours */ });
 				res.status(200).send({ auth: true, token: token, jsonUser: JSON.stringify(user.toJSON()), created: created });
@@ -787,3 +793,15 @@ function tradeItems(from, to) {
 		});
 	});
 }
+
+app.post('/playerSearch', (req, res) => {
+	User.findAll({
+		where: {
+			username: {
+				[Op.like]: `%${req.body.username}%`
+			}
+		}
+	}).then(users => {
+		res.status(200).send(users);
+	})
+});
