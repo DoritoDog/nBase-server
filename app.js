@@ -17,6 +17,7 @@ const crypto = require('crypto');
 const uuidv4 = require('uuid/v4');
 
 const ethereum = require('./ethereum.js');
+const BigNumber = require('bignumber.js');
 
 const iap = require('in-app-purchase');
 iap.config({
@@ -572,7 +573,21 @@ app.post('/buyMarketItem', (req, res) => {
 	}
 });
 
-// #region Real time trading
+// SELECT t1.* FROM listings t1 WHERE state = 'Sold' AND t1.updatedAt = (SELECT MAX(t2.updatedAt) FROM listings t2 WHERE t2.item_identifier = t1.item_identifier)
+app.post('/lastSolds', (req, res) => {
+	Listing.findAll({
+		where: {
+			state: 'Sold'
+		},
+		order: [
+			['updatedAt', 'ASC']
+		]
+	}).then(soldListings => {
+		res.status(200).send(soldListings);
+	});
+});
+
+// #region Real time trading and chat
 
 var io = require('socket.io')({
 	transports: ['websocket'],
@@ -586,6 +601,10 @@ io.on('connection', socket => {
 			Trader.create({ user_id: msg.senderId, other_trader_user_id: msg.recieverId });
 			Trader.create({ user_id: msg.recieverId, other_trader_user_id: msg.senderId });
 		}
+	});
+
+	socket.on('chat', msg => {
+		io.emit('chat', msg);
 	});
 
 	socket.on('trading', msg => {
@@ -639,13 +658,12 @@ io.on('connection', socket => {
 						trader.has_confirmed = true;
 						trader.save();
 					}
-		
+					
 					Trader.findOne({
 						where: {
 							user_id: trader.other_trader_user_id
 						}
 					}).then(otherTrader => {
-						console.log(trader.is_ready);
 						msg.areYouReady = trader.is_ready;
 						msg.isOtherTraderReady = otherTrader.is_ready;
 		
@@ -656,15 +674,34 @@ io.on('connection', socket => {
 						if (msg.makeTrade && (trader.is_ready && otherTrader.is_ready)) {
 		
 							if (trader.has_confirmed && otherTrader.has_confirmed) {
+								
+								if (trader.tokens_offered > 0 || otherTrader.tokens_offered > 0) {
+
+									User.findOne({ where: { id: trader.user_id }}).then(user => {
+										User.findOne({ where: { id: otherTrader.user_id }}).then(otherUser => {
+
+											let traderAllowance = BigNumber(ethereum.getAllowance(user.eth_address));
+											let otherTraderAllowance = BigNumber(ethereum.getAllowance(otherUser.eth_address));
+											let traderOK = traderAllowance.isGreaterThanOrEqualTo(BigNumber(ethereum.toWei(trader.tokens_offered)));
+											let otherTraderOK = otherTraderAllowance.isGreaterThanOrEqualTo(BigNumber(ethereum.toWei(otherTrader.tokens_offered)));
+
+											if (traderOK && otherTraderOK) {
+												if (trader.tokens_offered > 0)
+													ethereum.transferFrom(user.eth_address, otherUser.eth_address, trader.tokens_offered);
+
+												if (otherTrader.tokens_offered > 0)
+													ethereum.transferFrom(otherUser.eth_address, user.eth_address, otherTrader.tokens_offered);
+											}
+											else {
+												closeTrade(trader.user_id, otherTrader.user_id);
+												return;
+											}
+										});
+									});
+								}
+
 								tradeItems(trader.id, otherTrader.user_id);
 								tradeItems(otherTrader.id, trader.user_id);
-
-								if (trader.tokens_offered > 0) {
-									// Transfer here...
-								}
-								if (otherTrader.tokens_offered > 0) {
-									// And here...
-								}
 
 								closeTrade(trader.user_id, otherTrader.user_id);
 								msg.success = true;
