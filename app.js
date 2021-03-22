@@ -9,15 +9,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 const fs   = require('fs');
 const jwt = require('jsonwebtoken');
-const publicKey  = fs.readFileSync('./public.key', 'utf8');
+//const publicKey  = fs.readFileSync('./public.key', 'utf8');
 const privateKey  = fs.readFileSync('./private.key', 'utf8');
-const googlePublic = fs.readFileSync('./googlePublic.key', 'utf8');
+//const googlePublic = fs.readFileSync('./googlePublic.key', 'utf8');
 
 const crypto = require('crypto');
 const uuidv4 = require('uuid/v4');
 
-const ethereum = require('./ethereum.js');
-const BigNumber = require('bignumber.js');
+/*const ethereum = require('./ethereum.js');
+const BigNumber = require('bignumber.js');*/
 
 const iap = require('in-app-purchase');
 iap.config({
@@ -84,7 +84,7 @@ const etherProducts = [
 
 const Sequelize = require('sequelize');
 const sequelize = new Sequelize(
-	'game',
+	'nbase',
 	process.env.DB_USERNAME,
 	process.env.DB_PASSWORD,
 	{ host: process.env.DB_HOST, logging: false, dialect: 'mysql', operatorsAliases: false, pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }}
@@ -109,7 +109,6 @@ const User = sequelize.define('users', {
 	device_id: { type: Sequelize.STRING },
 	firebase_token: { type: Sequelize.STRING },
 	gold: { type: Sequelize.INTEGER },
-	eth_address: { type: Sequelize.STRING },
 	level: { type: Sequelize.INTEGER },
 	profile_description: { type: Sequelize.STRING },
 	image_url: { type: Sequelize.STRING }
@@ -201,10 +200,10 @@ const Friend = sequelize.define('friends', { }, { timestamps: false });
 Friend.belongsTo(User, { foreignKey: 'friend_id' });
 User.hasMany(Friend, { as: 'Friends', foreignKey: 'user_id' });
 
-const FriendRequest = sequelize.define('friend_requests', { });
+/*const FriendRequest = sequelize.define('friend_requests', { });
 User.hasMany(FriendRequest, { as: 'FriendRequests', foreignKey: 'reciever_id' });
 
-const Listing = sequelize.define('listings', {
+/*const Listing = sequelize.define('listings', {
 	user_id: { type: Sequelize.INTEGER },
 	price: { type: Sequelize.STRING },
 	address: { type: Sequelize.STRING },
@@ -237,7 +236,7 @@ const ItemInTrade = sequelize.define('items_in_trades', {
 	trader_id: { type: Sequelize.INTEGER },
 }, {
 	timestamps: false
-});
+});*/
 
 // #endregion
 
