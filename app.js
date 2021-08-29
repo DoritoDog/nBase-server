@@ -200,6 +200,29 @@ const Friend = sequelize.define('friends', { }, { timestamps: false });
 Friend.belongsTo(User, { foreignKey: 'friend_id' });
 User.hasMany(Friend, { as: 'Friends', foreignKey: 'user_id' });
 
+const ChatMessage = sequelize.define('chat_messages', {
+	id: {
+    type: Sequelize.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+	},
+	title: {
+		type: Sequelize.STRING
+	},
+	body: {
+		type: Sequelize.STRING
+	},
+	sender_id: {
+		type: Sequelize.INTEGER
+	},
+	receiver_id: {
+		type: Sequelize.INTEGER
+	},
+	name: {
+		type: Sequelize.STRING
+	}
+}, { timestamps: true });
+
 /*const FriendRequest = sequelize.define('friend_requests', { });
 User.hasMany(FriendRequest, { as: 'FriendRequests', foreignKey: 'reciever_id' });
 
@@ -840,4 +863,84 @@ app.post('/playerSearch', (req, res) => {
 	}).then(users => {
 		res.status(200).send(users);
 	})
+});
+
+var admin = require('firebase-admin');
+admin.initializeApp({
+  credential: admin.credential.cert(JSON.parse(fs.readFileSync('serviceAccountKey.json', 'utf8'))),
+  databaseURL: "https://rts-game-c913e.firebaseio.com"
+});
+
+function sendFcmMsg(title, body, firebaseToken) {
+  const message = {
+    notification: {
+      title: title,
+      body: body
+    },
+    token: firebaseToken
+  };
+
+  admin.messaging().send(message);
+}
+
+function sendFcmMsgToUser(title, body, userId) {
+		User.findOne({
+		where: {
+			id: userId
+		}
+	}).then(user => {
+		if (user.firebase_token !== null && user.firebase_token !== '') {
+			sendFcmMsg(title, body, user.firebase_token);
+		}
+	});
+}
+
+app.post('/send-chat-message', (req, res) => {
+	ChatMessage.create({
+		title: req.body.title,
+		body: req.body.body,
+		sender_id: req.body.sender,
+		receiver_id: req.body.receiver,
+		name: req.body.name
+	}).then(msg => {
+		msg.save();
+
+		io.emit("chat", msg);
+
+		sendFcmMsgToUser(req.body.title, req.body.body, req.body.receiver);
+	});
+});
+
+app.post('/get-chat-messages', (req, res) => {
+	ChatMessage.findAll({
+    where: {
+			[Op.or]: [
+				{ sender_id: req.body.get_messages },
+				{ receiver_id: req.body.get_messages }
+			]
+  	}
+	}).then(msgs => {
+		let archivedMsgs = [];
+		msgs.forEach(msg => {
+			archivedMsgs.push({
+				id: msg.id,
+				sender_id: msg.sender_id,
+				receiver_id: msg.receiver_id,
+				msg: msg.body,
+				timestamp: msg.createdAt
+			});
+		});
+		res.send(archivedMsgs);
+	});
+});
+
+app.post('/update-firebase-token', (req, res) => {
+	User.findOne({
+		where: {
+			id: req.body.playFabId
+		}
+	}).then(user => {
+		user.token = req.body.token;
+		user.save();
+	});
 });
